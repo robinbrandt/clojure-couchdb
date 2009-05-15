@@ -29,6 +29,27 @@
     (is (= (:update_seq info) 0))))
 
 
+(deftest document
+  ;; first get list of documents
+  (let [docs (couchdb/document-list +test-db+)]
+    (is (zero? (:total_rows docs)))
+    (is (= [] (:rows docs)))
+    ;; now create a document with a server-generated ID
+    (let [doc (couchdb/document-create +test-db+ {:foo 1})]
+      (is (= (:ok doc) true))
+      (is (= (:foo (couchdb/document-get +test-db+ (:id doc))) 1)))
+    ;; and recheck the list of documents
+    (let [new-docs (couchdb/document-list +test-db+)]
+      (is (= 1 (:total_rows new-docs))))
+    ;; now make a new document with an ID we choose
+    (is (= (:ok (couchdb/document-create +test-db+ {:foo 1} :foobar)) true))
+    ;; and recheck the list of documents
+    (let [new-docs (couchdb/document-list +test-db+)]
+      (is (= 2 (:total_rows new-docs)))
+      (is (= 1 (count (filter #(= (:id %) "foobar") (:rows new-docs))))))
+    ;; and try to GET the document back from the server
+    (is (= (:foo (couchdb/document-get +test-db+ :foobar)) 1))))
+
 
 
 (run-tests)
