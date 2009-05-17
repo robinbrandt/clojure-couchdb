@@ -40,7 +40,7 @@
     (let [new-docs (couchdb/document-list +test-db+)]
       (is (= 1 (count new-docs))))
     ;; now make a new document with an ID we choose
-    (let [new-doc (couchdb/document-create +test-db+ {:foo 1} :foobar)]
+    (let [new-doc (couchdb/document-create +test-db+ "foobar" {:foo 1})]
       ;; and recheck the list of documents
       (let [new-docs (couchdb/document-list +test-db+)]
         (is (= 2 (count new-docs)))
@@ -48,7 +48,7 @@
       ;; and try to get the document back from the server
       (is (= (:foo (couchdb/document-get +test-db+ :foobar)) 1))
       ;; now let's update our document
-      (is (= (:foo (couchdb/document-update +test-db+ (assoc new-doc :foo 5) :foobar) 5)))
+      (is (= (:foo (couchdb/document-update +test-db+ "foobar" (assoc new-doc :foo 5)) 5)))
       ;; and grab it back from the server just to make sure
       (is (= (:foo (couchdb/document-get +test-db+ :foobar) 5))))))
 
@@ -71,22 +71,22 @@
   ;; create a document with invalid JSON
   (is (raised? couchdb/ServerError (couchdb/document-create +test-db+ "not a JSON object")))
   ;; create a document for reals this time
-  (let [doc (couchdb/document-create +test-db+ {:foo 42} "foo")]
+  (let [doc (couchdb/document-create +test-db+ "foo" {:foo 42})]
     (is (= (:foo doc) 42))
     (is (= (:_id doc) "foo"))
     ;; try to update the document without sending the version
-    (is (raised? couchdb/ResourceConflict (couchdb/document-update +test-db+ {:foo 43} "foo")))
+    (is (raised? couchdb/ResourceConflict (couchdb/document-update +test-db+ "foo" {:foo 43})))
     ;; update the document for real
-    (couchdb/document-update +test-db+ (assoc doc :foo 43) "foo")
+    (couchdb/document-update +test-db+ "foo" (assoc doc :foo 43))
     ;; check that it updated
     (let [new-doc (couchdb/document-get +test-db+ "foo")]
       (is (= (:foo new-doc) 43))))
   ;; create an initial version of a document
-  (let [first-rev (couchdb/document-create +test-db+ {:answer "one"} "bam")]
+  (let [first-rev (couchdb/document-create +test-db+ "bam" {:answer "one"})]
     ;; test that we can just update the document straight up
-    (is (= (:answer (couchdb/document-update +test-db+ (assoc first-rev :answer "two") "bam") "two")))
+    (is (= (:answer (couchdb/document-update +test-db+ "bam" (assoc first-rev :answer "two")) "two")))
     ;; now try to insert with the wrong revision
-    (is (raised? couchdb/ResourceConflict (couchdb/document-update +test-db+ (assoc first-rev :answer "three") "bam")))))
+    (is (raised? couchdb/ResourceConflict (couchdb/document-update +test-db+ "bam" (assoc first-rev :answer "three"))))))
 
 (defn test-ns-hook
   []

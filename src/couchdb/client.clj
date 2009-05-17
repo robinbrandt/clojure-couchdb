@@ -115,11 +115,11 @@
 (defn document-create
   ([database payload]
      (do-document-touch database payload nil :post))
-  ([database payload id]
+  ([database id payload]
      (do-document-touch database payload id :put)))
 
 (defn document-update
-  [database payload id]
+  [database id payload]
   (do-document-touch database payload id :put))
 
 (defn document-get
