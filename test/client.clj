@@ -1,27 +1,6 @@
 (ns clojure-couchdb
   (:require (couchdb [client :as couchdb]))
-  (:require [clojure.contrib [error-kit :as kit]])
   (:use (clojure.contrib [test-is :as test-is])))
-
-;; (defmethod assert-expr 'raised? [msg [_ error-type & body :as form]]
-;;   (let [error-name (#'kit/qualify-sym error-type)]
-;;     `(kit/with-handler
-;;       (do
-;;         ~@body
-;;         (report {:type :fail
-;;                  :message ~msg
-;;                  :expected '~form
-;;                  :actual ~(str error-name " not raised.")}))
-;;       (kit/handle ~error-type {:as err#}
-;;                   (report {:type :pass
-;;                            :message ~msg
-;;                            :expected '~form
-;;                            :actual nil}))
-;;       (kit/handle *error* {:as err#}
-;;                   (report {:type :fail
-;;                            :message ~msg
-;;                            :expected '~form
-;;                            :actual (:tag err#)})))))
 
 (def +test-db+ "clojure-couchdb-test-database")
 
