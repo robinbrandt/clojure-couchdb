@@ -2,6 +2,7 @@
   (:require (couchdb [client :as couchdb]))
   (:use (clojure.contrib [test-is :as test-is])))
 
+
 (def +test-db+ "clojure-couchdb-test-database")
 
 
@@ -26,7 +27,10 @@
     (is (= (:db_name info) +test-db+))
     (is (= (:doc_count info) 0))
     (is (= (:doc_del_count info) 0))
-    (is (= (:update_seq info) 0))))
+    (is (= (:update_seq info) 0)))
+  ;; compact the db
+  ;(is (= (couchdb/database-compact +test-db+) true)) ; this conflicts with database deletion ATM
+)
 
 
 (deftest document
@@ -56,6 +60,7 @@
 (deftest cleanup
   ;; be a good citizen and delete the database we use for testing
   (is (= (couchdb/database-delete +test-db+) true)))
+
 
 (deftest error-checking
   ;; try to access an invalid database name
@@ -88,6 +93,7 @@
     ;; now try to insert with the wrong revision
     (is (raised? couchdb/ResourceConflict (couchdb/document-update +test-db+ "bam" (assoc first-rev :answer "three"))))))
 
+
 (defn test-ns-hook
   []
   (database)
@@ -95,5 +101,6 @@
   (cleanup)
   (error-checking)
   (cleanup))
+
 
 (run-tests)
