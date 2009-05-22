@@ -8,6 +8,7 @@
 
 (def *server* "http://localhost:5984/")
 
+
 (kit/deferror InvalidDatabaseName [] [database]
   {:msg (str "Invalid Database Name: " database)
    :unhandled (kit/throw-msg Exception)})
@@ -18,6 +19,10 @@
 
 (kit/deferror DocumentNotFound [] [e]
   {:msg (str "Document Not Found: " e)
+   :unhandled (kit/throw-msg java.io.FileNotFoundException)})
+
+(kit/deferror AttachmentNotFound [] [e]
+  {:msg (str "Attachment Not Found: " e)
    :unhandled (kit/throw-msg java.io.FileNotFoundException)})
 
 (kit/deferror ResourceConflict [] [e]
@@ -46,8 +51,9 @@
                       response))]
     (if (>= (:code result) 400)
       (kit/raise* ((condp = (:code result)
-                     404 (if (= (:reason (:json result)) "Missing") ;;as of svn rev 775577 this should be "no_db_file"
-                           DatabaseNotFound
+                     404 (condp = (:reason (:json result))
+                           "Missing" DatabaseNotFound ;; as of svn rev 775577 this should be "no_db_file"
+                           "Document is missing attachment" AttachmentNotFound
                            DocumentNotFound)
                      409 ResourceConflict
                      412 PreconditionFailed
@@ -67,6 +73,15 @@
   (if (valid-dbname? database)
     (url-encode database)
     (kit/raise InvalidDatabaseName database)))
+
+(defn stringify-top-level-keys
+  [[k v]]
+  (if (keyword? k)
+    [(if-let [n (namespace k)]
+       (str n (name k))
+       (name k))
+     v]
+    [k v]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -103,10 +118,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;         Documents           ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn document-list
-  [database]
-  (when-let [database (validate-dbname database)]
-    (map :id (:rows (:json (couch-request (str *server* database "/_all_docs")))))))
+(declare document-get)
+
+(defn- do-get-doc
+  [database document]
+  (if (map? document)
+    (if-let [id (:_id document)]
+      id
+      (kit/raise ResourceConflict "missing :_id key"))
+    document))
+
+(defn- do-get-rev
+  [database document]
+  (if (map? document)
+    (if-let [rev (:_rev document)]
+      rev
+      (kit/raise ResourceConflict "missing :_rev key"))
+    (:_rev (document-get database document))))
 
 (defn- do-document-touch
   [database payload id method]
@@ -117,8 +145,14 @@
                                          {"Content-Type" "application/json"}
                                          {}
                                          (json-str payload)))]
-      (merge {:_id (:id response), :_rev (:rev response)}
-             payload))))
+      (merge payload
+             {:_id (:id response)
+              :_rev (:rev response)}))))
+
+(defn document-list
+  [database]
+  (when-let [database (validate-dbname database)]
+    (map :id (:rows (:json (couch-request (str *server* database "/_all_docs")))))))
 
 (defn document-create
   ([database payload]
@@ -129,23 +163,40 @@
 (defn document-update
   [database id payload]
   ;(assert (:_rev payload)) ;; payload needs to have a revision or you'll get a PreconditionFailed error
-  (do-document-touch database payload id :put))
+  (let [id (do-get-doc database id)]
+    (do-document-touch database payload id :put)))
 
 (defn document-get
   ([database id]
      (when-let [database (validate-dbname database)]
-       (:json (couch-request (str *server* database "/" (url-encode (as-str id)))))))
+       (let [id (do-get-doc database id)]
+         (:json (couch-request (str *server* database "/" (url-encode (as-str id))))))))
   ([database id rev]
      (when-let [database (validate-dbname database)]
-       (:json (couch-request (str *server* database "/" (url-encode (as-str id)) "?rev=" rev))))))
+       (let [id (do-get-doc database id)]
+         (:json (couch-request (str *server* database "/" (url-encode (as-str id)) "?rev=" rev)))))))
+
+(defn document-delete
+  [database id]
+  (when-let [database (validate-dbname database)]
+    (let [id (do-get-doc database id)
+          rev (do-get-rev database id)]
+      (couch-request (str *server* database "/" (url-encode (as-str id)) "?rev=" rev)
+                     :delete)
+      true)))
+
+(defn- revision-comparator
+  [x y]
+  (> (Integer. (apply str (take-while #(not= % \-) x)))
+     (Integer. (apply str (take-while #(not= % \-) y)))))
 
 (defn document-revisions
   [database id]
   (when-let [database (validate-dbname database)]
-    (apply merge
-           (reverse (map (fn [m]
-                           (apply array-map [(:rev m) (:status m)]))
-                         (:_revs_info (:json (couch-request (str *server* database "/" (url-encode (as-str id)) "?revs_info=true")))))))))
+    (let [id (do-get-doc database id)]
+      (apply merge (map (fn [m]
+                          (sorted-map-by revision-comparator (:rev m) (:status m)))
+                        (:_revs_info (:json (couch-request (str *server* database "/" (url-encode (as-str id)) "?revs_info=true")))))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -153,21 +204,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn attachment-list
   [database document]
-  (let [stringify-top-level-keys (fn [[k v]]
-                                   (if (keyword? k)
-                                     [(if-let [n (namespace k)]
-                                        (str n (name k))
-                                        (name k))
-                                      v]
-                                     [k v]))]
+  (let [document (do-get-doc database document)]
     (into {} (map stringify-top-level-keys
                   (:_attachments (document-get database document))))))
+
 
 (defn attachment-create
   [database document id payload content-type]
   (when-let [database (validate-dbname database)]
-    (let [rev (:_rev (document-get database document))]
-      (couch-request (str *server* database "/" (url-encode (as-str document)) "/" id "?rev=" rev)
+    (let [document (do-get-doc database document)
+          rev (do-get-rev database document)]
+      (couch-request (str *server* database "/" (url-encode (as-str document)) "/" (url-encode (as-str id)) "?rev=" rev)
                      :put
                      {"Content-Type" content-type}
                      {}
@@ -177,6 +224,16 @@
 (defn attachment-get
   [database document id]
   (when-let [database (validate-dbname database)]
-    (let [response (couch-request (str *server* database "/" (url-encode (as-str document)) "/" id))]
+    (let [document (do-get-doc database document)
+          response (couch-request (str *server* database "/" (url-encode (as-str document)) "/" (url-encode (as-str id))))]
       {:body-seq (:body-seq response)
        :content-type ((:get-header response) "content-type")})))
+
+(defn attachment-delete
+  [database document id]
+  (when-let [database (validate-dbname database)]
+    (let [document (do-get-doc database document)
+          rev (do-get-rev database document)]
+      (couch-request (str *server* database "/" (url-encode (as-str document)) "/" (url-encode (as-str id)) "?rev=" rev)
+                     :delete)
+      true)))
