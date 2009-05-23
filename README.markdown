@@ -1,5 +1,11 @@
 #clojure-couchdb
 
+Simple clojure library to interface with [Apache CouchDB](http://couchdb.apache.org/).
+
+Depends on clojure-contrib and [clojure-http-client](http://github.com/technomancy/clojure-http-client/) (hopefully soon a part of contrib).
+
+---
+
 ##Database Functions:
 
 ###database-list
