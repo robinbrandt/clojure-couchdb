@@ -14,6 +14,9 @@
 ###database-delete
     user=> (database-delete "new-db")
     true
+###database-compact
+    user=> (database-compact "foo")
+    true
 
 ##Document Functions:
 
@@ -44,6 +47,14 @@
 ##Attachment Functions
 
 ###attachment-list
+    user=> (attachment-list "some-db" "my-doc")
+    {"my-attachment" {:length 28, :content_type "text/plain", :stub true}, "f" {:length 3, :content_type "cntnt/type", :stub true}
 ###attachment-create
+    user=> (attachment-create "some-db" "my-doc" "new-attachment" "PAYLOAD" "text/plain")
+    "new-attachment"
 ###attachment-get
+    user=> (attachment-get "some-db" "my-doc" "new-attachment")
+    {:body-seq ("PAYLOAD"), :content-type "text/plain"}
 ###attachment-delete
+    user=> (attachment-delete "some-db" "my-doc" "new-attachment")
+    true
