@@ -1,11 +1,39 @@
 (ns clojure-couchdb
-  (:require (couchdb [client :as couchdb]))
+  (:require (couchdb [client :as couchdb])
+            (clojure.contrib [error-kit :as kit]))
   (:use (clojure.contrib [test-is :as test-is])))
 
 
 (def +test-db+ "clojure-couchdb-test-database")
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;         Utilities           ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- qualify-sym [sym]
+  (let [v (resolve sym)]
+    (assert v)
+    (apply symbol (map #(str (% ^v)) [:ns :name]))))
+
+(defmethod assert-expr 'raised? [msg [_ error-type & body :as form]]
+  (let [error-name (qualify-sym error-type)]
+    `(kit/with-handler
+      (do
+        ~@body
+        (report {:type :fail
+                 :message ~msg
+                 :expected '~form
+                 :actual ~(str error-name " not raised.")}))
+      (kit/handle ~error-type {:as err#}
+              (report {:type :pass
+                       :message ~msg
+                       :expected '~form
+                       :actual nil})))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;           Tests             ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest databases
   ;; get a list of existing DBs
   (let [db-list (couchdb/database-list)
