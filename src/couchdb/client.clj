@@ -4,7 +4,7 @@
         [clojure.contrib.java-utils :only [as-str]]
         [clojure.contrib.json.read :only [read-json *json-keyword-keys*]]
         [clojure.contrib.json.write :only [json-str]]
-        [clojure.http.client :only [request url-encode]]))
+        [clojure.http.client :only [request url-encode encode-body-map]]))
 
 (def *server* "http://localhost:5984/")
 
@@ -150,9 +150,12 @@
               :_rev (:rev response)}))))
 
 (defn document-list
-  [database]
-  (when-let [database (validate-dbname database)]
-    (map :id (:rows (:json (couch-request (str *server* database "/_all_docs")))))))
+  ([database]
+     (when-let [database (validate-dbname database)]
+       (map :id (:rows (:json (couch-request (str *server* database "/_all_docs")))))))
+  ([database options]
+     (when-let [database (validate-dbname database)]
+       (map :id (:rows (:json (couch-request (str *server* database "/_all_docs?" (encode-body-map options)))))))))
 
 (defn document-create
   ([database payload]
