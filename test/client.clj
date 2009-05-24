@@ -1,7 +1,9 @@
 (ns clojure-couchdb
+  (:import (java.io FileInputStream))
   (:require (couchdb [client :as couchdb])
             (clojure.contrib [error-kit :as kit]))
-  (:use (clojure.contrib [test-is :as test-is])))
+  (:use (clojure.contrib test-is)
+        [clojure.contrib.duck-streams :only [reader]]))
 
 
 (def +test-db+ "clojure-couchdb-test-database")
@@ -92,15 +94,29 @@
 
 
 (deftest attachments
+  ;; list
   (is (= (couchdb/attachment-list +test-db+ "foobar") {}))
+  ;; create
   (is (= (couchdb/attachment-create +test-db+ "foobar" "my-attachment #1" "ATTACHMENT DATA" "text/plain") "my-attachment #1"))
+  ;; get
   (is (= (couchdb/attachment-get +test-db+ "foobar" "my-attachment #1") {:body-seq '("ATTACHMENT DATA")
                                                                          :content-type "text/plain"}))
+  ;; re-check the list
   (is (= (couchdb/attachment-list +test-db+ "foobar") {"my-attachment #1"  {:length 15
                                                                             :content_type "text/plain"
                                                                             :stub true}}))
+  ;; delete
   (is (= (couchdb/attachment-delete +test-db+ "foobar" "my-attachment #1") true))
-  (is (= (couchdb/attachment-list +test-db+ "foobar") {})))
+  ;; re-check the list again
+  (is (= (couchdb/attachment-list +test-db+ "foobar") {}))
+  ;; create with InputStream
+  (let [istream (FileInputStream. *file*)]
+    (is (= (couchdb/attachment-create +test-db+ "foobar" "my-attachment #2" istream "text/clojure") "my-attachment #2")))
+  ;; get back the attachment we just created
+  (let [istream (FileInputStream. *file*)]
+    (is (= (couchdb/attachment-get +test-db+ "foobar" "my-attachment #2")
+           {:body-seq (line-seq (reader istream))
+            :content-type "text/clojure"}))))
 
 
 (deftest documents-passing-map

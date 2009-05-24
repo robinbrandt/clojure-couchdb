@@ -1,7 +1,6 @@
 (ns couchdb.client
   (:require [clojure.contrib [error-kit :as kit]])
-  (:use [clojure.contrib.duck-streams :only [read-lines]]
-        [clojure.contrib.java-utils :only [as-str]]
+  (:use [clojure.contrib.java-utils :only [as-str]]
         [clojure.contrib.json.read :only [read-json *json-keyword-keys*]]
         [clojure.contrib.json.write :only [json-str]]
         [clojure.http.client :only [request url-encode encode-body-map]]))
