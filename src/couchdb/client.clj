@@ -189,8 +189,8 @@
 
 (defn- revision-comparator
   [x y]
-  (> (Integer. (apply str (take-while #(not= % \-) x)))
-     (Integer. (apply str (take-while #(not= % \-) y)))))
+  (> (Integer/decode (apply str (take-while #(not= % \-) x)))
+     (Integer/decode (apply str (take-while #(not= % \-) y)))))
 
 (defn document-revisions
   [database id]
